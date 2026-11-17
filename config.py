@@ -103,6 +103,9 @@ class Settings:
     max_batch_download: int
 
     def ensure_dirs(self) -> None:
+        # results 需要让 nginx worker（非 fileforge 用户）能读取，
+        # 其余目录保持 750，仅 app/worker/cleanup 可访问。
+        public_dirs = {self.results_dir, self.results_dir / "_tmp"}
         for path in (
             self.data_dir,
             self.uploads_dir,
@@ -114,7 +117,7 @@ class Settings:
         ):
             path.mkdir(parents=True, exist_ok=True)
             try:
-                os.chmod(path, 0o750)
+                os.chmod(path, 0o755 if path in public_dirs else 0o750)
             except OSError:
                 pass
         return None

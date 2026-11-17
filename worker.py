@@ -132,6 +132,11 @@ def _move_result(task: dict, result: Path) -> None:
     dest = cfg.results_dir / result_id
     shutil.move(str(result), str(dest))
     try:
+        # nginx worker 以 nginx 用户读取结果，文件必须 world-readable
+        os.chmod(dest, 0o644)
+    except OSError:
+        pass
+    try:
         size = dest.stat().st_size
     except OSError:
         size = 0
