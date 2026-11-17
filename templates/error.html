@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} · FileForge{% endblock %}
+{% block content %}
+<div class="error-wrap">
+  <div class="error-code">{{ code }}</div>
+  <p class="error-message">{{ message }}</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="/">返回首页</a>
+    <a class="btn btn-ghost" href="/tasks">我的任务</a>
+  </div>
+</div>
+{% endblock %}

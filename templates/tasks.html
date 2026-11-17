@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}任务中心 · FileForge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ '全部用户任务' if view_all else '我的任务' }}</p>
+    <h1 class="page-title">任务中心</h1>
+    <p class="page-sub">共 {{ result.total }} 个任务</p>
+  </div>
+  <div class="head-actions">
+    {% if user.role == 'admin' %}
+      <a class="btn btn-ghost btn-sm" href="/tasks{% if not view_all %}?scope=all{% endif %}">
+        {{ '只看我的' if view_all else '查看全部用户' }}
+      </a>
+    {% endif %}
+    <a class="btn btn-primary btn-sm" href="/convert/image">新建转换</a>
+  </div>
+</div>
+
+<div class="stat-grid compact">
+  <div class="stat"><span class="stat-label">等待</span><span class="stat-value">{{ counts.get('pending', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">转换中</span><span class="stat-value info">{{ counts.get('running', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">完成</span><span class="stat-value ok">{{ counts.get('done', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">失败</span><span class="stat-value err">{{ counts.get('failed', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">过期/取消</span><span class="stat-value muted">{{ counts.get('expired', 0) + counts.get('canceled', 0) }}</span></div>
+</div>
+
+<form class="filter-bar" method="get" action="/tasks">
+  {% if filters.scope %}<input type="hidden" name="scope" value="{{ filters.scope }}">{% endif %}
+  <input class="filter-search" type="search" name="q" value="{{ filters.q }}" placeholder="搜索文件名">
+  <select name="status">
+    <option value="">全部状态</option>
+    {% for key, label in status_labels.items() %}
+      <option value="{{ key }}" {{ 'selected' if filters.status == key }}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="category">
+    <option value="">全部分类</option>
+    {% for key in category_order %}
+      <option value="{{ key }}" {{ 'selected' if filters.category == key }}>{{ categories[key].label }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-ghost btn-sm" type="submit">筛选</button>
+  {% if filters.q or filters.status or filters.category %}
+    <a class="btn btn-ghost btn-sm" href="/tasks{% if filters.scope %}?scope={{ filters.scope }}{% endif %}">清空</a>
+  {% endif %}
+</form>
+
+<div class="panel">
+  <div class="batch-bar" id="batch-bar" hidden>
+    <span id="selected-count">已选 0 项</span>
+    <button class="btn btn-ghost btn-sm" data-batch="download" type="button">打包下载</button>
+    <button class="btn btn-danger btn-sm" data-batch="delete" type="button">批量删除</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="check"><input type="checkbox" id="check-all" aria-label="全选"></th>
+          <th>文件</th>
+          <th>分类</th>
+          <th>状态</th>
+          <th>大小</th>
+          <th>创建时间</th>
+          <th class="actions">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task in result['items'] %}
+        <tr data-task="{{ task.id }}" data-status="{{ task.status }}">
+          <td class="check"><input type="checkbox" class="row-check" value="{{ task.id }}"></td>
+          <td>
+            <a class="task-link" href="/tasks/{{ task.id }}">{{ task.src_name }}</a>
+            <div class="sub">{{ task.category|cat_label }}{% if task.target_format %} → {{ task.target_format }}{% endif %}</div>
+          </td>
+          <td class="nowrap">{{ task.category|cat_label }}</td>
+          <td>
+            <span class="badge {{ task.status|status_class }}">{{ task.status|status_label }}</span>
+            {% if task.status == 'running' %}
+              <div class="mini-bar"><span style="width: {{ task.progress }}%"></span></div>
+            {% endif %}
+          </td>
+          <td class="nowrap">{{ task.src_size|size }}</td>
+          <td class="nowrap muted">{{ task.created_at|dt }}</td>
+          <td class="actions">
+            <a class="btn btn-ghost btn-xs" href="/tasks/{{ task.id }}">详情</a>
+            {% if task.status == 'done' %}
+              <a class="btn btn-ghost btn-xs" href="/download/{{ task.id }}">下载</a>
+            {% endif %}
+            <button class="btn btn-danger btn-xs" type="button" data-delete="{{ task.id }}">删除</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7">
+            <div class="empty">
+              <p>没有符合条件的任务</p>
+              <a class="btn btn-primary btn-sm" href="/convert/image">上传一个文件试试</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if result.pages > 1 %}
+  <nav class="pagination">
+    {% set base_q = '/tasks?scope=' ~ filters.scope ~ '&status=' ~ filters.status ~ '&category=' ~ filters.category ~ '&q=' ~ (filters.q|urlencode) %}
+    {% if result.page > 1 %}
+      <a class="page-btn" href="{{ base_q }}&page={{ result.page - 1 }}">← 上一页</a>
+    {% endif %}
+    <span class="page-info">第 {{ result.page }} / {{ result.pages }} 页</span>
+    {% if result.page < result.pages %}
+      <a class="page-btn" href="{{ base_q }}&page={{ result.page + 1 }}">下一页 →</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/tasks.js') }}"></script>{% endblock %}

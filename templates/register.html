@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}注册 · FileForge{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card panel">
+    <div class="auth-head">
+      <span class="brand-mark">F</span>
+      <h1>创建账号</h1>
+      <p>注册即获得 2GB 存储配额</p>
+    </div>
+    <form id="register-form" class="form">
+      <label class="field">
+        <span>用户名</span>
+        <input name="username" autocomplete="username" required minlength="3" maxlength="32"
+               placeholder="3-32 位字母、数字、下划线">
+      </label>
+      <label class="field">
+        <span>邮箱</span>
+        <input name="email" type="email" autocomplete="email" required placeholder="you@example.com">
+      </label>
+      <label class="field">
+        <span>密码</span>
+        <input name="password" type="password" autocomplete="new-password" required minlength="8"
+               placeholder="至少 8 位，包含字母和数字">
+      </label>
+      <label class="field">
+        <span>确认密码</span>
+        <input name="confirm" type="password" autocomplete="new-password" required minlength="8">
+      </label>
+      <p class="form-error" id="form-error" hidden></p>
+      <button class="btn btn-primary btn-block" type="submit">注册并登录</button>
+    </form>
+    <p class="auth-foot">已有账号？<a href="/login">直接登录</a></p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/auth.js') }}"></script>{% endblock %}

@@ -1,0 +1,245 @@
+name: fileforge
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app-env: &app-env
+  TZ: ${TZ:-Asia/Shanghai}
+  DISPLAY_TZ: ${DISPLAY_TZ:-Asia/Shanghai}
+  SECRET_KEY: ${SECRET_KEY:-dev-insecure-secret-change-me}
+  DATA_DIR: /srv/data
+  UPLOADS_DIR: /srv/uploads
+  TMP_DIR: /srv/tmp
+  RESULTS_DIR: /srv/results
+  LOGS_DIR: /srv/logs
+  ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@fileforge.local}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+  LIBMAGIC: ${LIBMAGIC:-auto}
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
+  USER_QUOTA_MB: ${USER_QUOTA_MB:-2048}
+  RESULT_TTL_HOURS: ${RESULT_TTL_HOURS:-24}
+  DISK_WARN_PCT: ${DISK_WARN_PCT:-85}
+  DISK_STOP_PCT: ${DISK_STOP_PCT:-95}
+  MAX_CONCURRENT: ${MAX_CONCURRENT:-2}
+  RETRY_MAX: ${RETRY_MAX:-1}
+  TIMEOUT_IMAGE: ${TIMEOUT_IMAGE:-60}
+  TIMEOUT_DOCUMENT: ${TIMEOUT_DOCUMENT:-180}
+  TIMEOUT_MEDIA: ${TIMEOUT_MEDIA:-600}
+  TIMEOUT_ARCHIVE: ${TIMEOUT_ARCHIVE:-120}
+  CLEANUP_INTERVAL: ${CLEANUP_INTERVAL:-3600}
+  SECURE_COOKIES: ${SECURE_COOKIES:-0}
+  GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+  GUNICORN_THREADS: ${GUNICORN_THREADS:-8}
+  # 转换容器
+  TMP_VOLUME: fileforge_tmp
+  TOOL_MOUNT: ${TOOL_MOUNT:-subpath}
+  TOOL_UID: "1000"
+  TOOL_GID: "1000"
+  TOOL_MEMORY: ${TOOL_MEMORY:-1g}
+  TOOL_CPUS: ${TOOL_CPUS:-1}
+  TOOL_PIDS_LIMIT: ${TOOL_PIDS_LIMIT:-64}
+  FFMPEG_IMAGE: ${FFMPEG_IMAGE:-fileforge/media-tools:1.0.0}
+  OFFICE_IMAGE: ${OFFICE_IMAGE:-fileforge/office-tools:1.0.0}
+  ARCHIVE_IMAGE: ${ARCHIVE_IMAGE:-fileforge/media-tools:1.0.0}
+  DOCKER_BIN: docker
+
+x-app-volumes: &app-volumes
+  - data:/srv/data
+  - uploads:/srv/uploads
+  - tmp:/srv/tmp
+  - results:/srv/results
+  - logs:/srv/logs
+
+services:
+  # 一次性权限初始化：命名卷首次创建时由 root 拥有，统一 chown 给 uid 1000。
+  # 正常退出（Exited 0）后其余服务才开始启动。
+  volume-init:
+    image: fileforge/app:1.0.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "0:0"
+    command:
+      - sh
+      - -c
+      - mkdir -p /srv/data /srv/uploads /srv/tmp /srv/results /srv/logs && chown -R 1000:1000 /srv
+    volumes: *app-volumes
+    restart: "no"
+    networks:
+      - fileforge
+    logging: *default-logging
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./static:/srv/static:ro
+      - results:/srv/results:ro
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+      app:
+        condition: service_started
+    networks:
+      - fileforge
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  app:
+    image: fileforge/app:1.0.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["gunicorn", "-c", "gunicorn.conf.py", "app:app"]
+    environment:
+      <<: *app-env
+    volumes: *app-volumes
+    expose:
+      - "8000"
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    networks:
+      - fileforge
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import sys, urllib.request
+          try:
+              urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=3)
+          except Exception:
+              sys.exit(1)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  worker:
+    image: fileforge/app:1.0.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "worker.py"]
+    user: "1000:1000"
+    group_add:
+      - "${DOCKER_GID:-0}"
+    environment:
+      <<: *app-env
+    volumes:
+      - data:/srv/data
+      - uploads:/srv/uploads
+      - tmp:/srv/tmp
+      - results:/srv/results
+      - logs:/srv/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    networks:
+      - fileforge
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  cleanup:
+    image: fileforge/app:1.0.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "cleanup.py"]
+    environment:
+      <<: *app-env
+    volumes: *app-volumes
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    networks:
+      - fileforge
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # 工具镜像：不需要常驻，只用于构建，docker compose --profile tools build
+  tools-media:
+    image: fileforge/media-tools:1.0.0
+    build:
+      context: deploy/tools
+      dockerfile: media.Dockerfile
+    profiles:
+      - tools
+    command: ["true"]
+    restart: "no"
+    networks:
+      - fileforge
+    logging: *default-logging
+
+  tools-office:
+    image: fileforge/office-tools:1.0.0
+    build:
+      context: deploy/tools
+      dockerfile: office.Dockerfile
+    profiles:
+      - tools
+    command: ["true"]
+    restart: "no"
+    networks:
+      - fileforge
+    logging: *default-logging
+
+volumes:
+  data:
+    name: fileforge_data
+  uploads:
+    name: fileforge_uploads
+  tmp:
+    name: fileforge_tmp
+  results:
+    name: fileforge_results
+  logs:
+    name: fileforge_logs
+
+networks:
+  fileforge:
+    name: fileforge_net
+    driver: bridge

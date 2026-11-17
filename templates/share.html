@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}分享的文件 · FileForge{% endblock %}
+{% block content %}
+<div class="share-wrap">
+  {% if error %}
+  <div class="share-card panel">
+    <div class="share-icon err">!</div>
+    <h1>链接不可用</h1>
+    <p class="muted">{{ error }}</p>
+    <a class="btn btn-ghost" href="/">返回首页</a>
+  </div>
+  {% else %}
+  <div class="share-card panel">
+    <p class="eyebrow">SHARED FILE</p>
+    <div class="share-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/>
+      </svg>
+    </div>
+    <h1 class="share-name">{{ task.result_name }}</h1>
+    <p class="share-meta">
+      {{ task.category|cat_label }} · {{ task.result_size|size }}
+      {% if share.expire_at %} · 有效期至 {{ share.expire_at|dt }}{% endif %}
+      {% if share.max_downloads %} · 剩余 {{ [share.max_downloads - share.download_count, 0]|max }} 次{% endif %}
+    </p>
+    <a class="btn btn-primary btn-lg" href="/share/{{ token }}/download">下载文件</a>
+    <p class="hint">此分享页不包含上传者信息</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

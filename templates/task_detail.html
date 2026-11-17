@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ task.src_name }} · FileForge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="detail-head">
+    <a class="back" href="/tasks">← 返回任务列表</a>
+    <h1 class="page-title task-title">{{ task.src_name }}</h1>
+    <div class="title-meta">
+      <span class="badge {{ task.status|status_class }}" id="status-badge" data-status="{{ task.status }}">{{ task.status|status_label }}</span>
+      <span class="muted">{{ task.category|cat_label }}</span>
+      <span class="muted">→ {{ task.target_format or '未选择格式' }}</span>
+      <span class="mono muted">#{{ task.id[:10] }}</span>
+    </div>
+  </div>
+  <div class="head-actions">
+    {% if task.status == 'done' %}
+      <a class="btn btn-primary" href="/download/{{ task.id }}">下载结果</a>
+      <button class="btn btn-ghost" type="button" id="share-btn">分享</button>
+    {% endif %}
+    {% if task.status in ('pending', 'running') %}
+      <button class="btn btn-ghost" type="button" id="cancel-btn">取消任务</button>
+    {% endif %}
+    {% if task.status in ('failed', 'canceled', 'expired') %}
+      <button class="btn btn-ghost" type="button" id="retry-btn">重试</button>
+    {% endif %}
+    <button class="btn btn-danger" type="button" id="delete-btn">删除</button>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>转换进度</h2>
+      <span class="mono" id="progress-text">{{ task.progress }}%</span>
+    </div>
+    <div class="progress-bar big">
+      <span id="progress-fill" style="width: {{ task.progress }}%"></span>
+    </div>
+
+    <div class="alert err" id="error-box" {% if not task.error_msg %}hidden{% endif %}>{{ task.error_msg or '' }}</div>
+
+    {% if task.status == 'done' %}
+    <div class="result-box">
+      <div>
+        <span class="result-label">结果文件</span>
+        <strong>{{ task.result_name }}</strong>
+        <span class="muted">{{ task.result_size|size }}</span>
+      </div>
+      <a class="btn btn-primary btn-sm" href="/download/{{ task.id }}">下载</a>
+    </div>
+    {% endif %}
+
+    {% if task.status == 'pending' and not task.target_format %}
+    <div class="result-box">
+      <div>
+        <span class="result-label">尚未选择目标格式</span>
+        <select id="inline-target">
+          {% for target in targets %}<option value="{{ target }}">{{ target }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" type="button" id="inline-convert">开始转换</button>
+    </div>
+    {% endif %}
+
+    <dl class="meta-grid">
+      <div><dt>任务 ID</dt><dd class="mono">{{ task.id }}</dd></div>
+      <div><dt>分类</dt><dd>{{ task.category|cat_label }}</dd></div>
+      <div><dt>源文件</dt><dd>{{ task.src_name }}</dd></div>
+      <div><dt>源大小</dt><dd>{{ task.src_size|size }}</dd></div>
+      <div><dt>目标格式</dt><dd>{{ task.target_format or '-' }}</dd></div>
+      <div><dt>结果大小</dt><dd>{{ task.result_size|size if task.result_size else '-' }}</dd></div>
+      <div><dt>创建时间</dt><dd>{{ task.created_at|dt }}</dd></div>
+      <div><dt>开始时间</dt><dd>{{ task.started_at|dt if task.started_at else '-' }}</dd></div>
+      <div><dt>完成时间</dt><dd>{{ task.finished_at|dt if task.finished_at else '-' }}</dd></div>
+      <div><dt>结果保留至</dt><dd>{{ task.expire_at|dt if task.expire_at else '-' }}</dd></div>
+      <div><dt>执行 worker</dt><dd class="mono">{{ task.worker_id or '-' }}</dd></div>
+      <div><dt>重试次数</dt><dd>{{ task.retry_count }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="panel log-panel">
+    <div class="panel-head">
+      <h2>转换日志</h2>
+      <button class="btn btn-ghost btn-xs" type="button" id="log-refresh">刷新</button>
+    </div>
+    <pre id="task-log" class="log">加载中…</pre>
+  </section>
+</div>
+
+{% if task.status == 'done' and task.target_format == 'list' %}
+<section class="panel archive-panel">
+  <div class="panel-head">
+    <h2>压缩包内容清单</h2>
+    <span class="muted" id="archive-summary">加载中…</span>
+  </div>
+  <div class="table-wrap">
+    <table class="table compact-table">
+      <thead><tr><th>文件路径</th><th>原始大小</th></tr></thead>
+      <tbody id="archive-rows"></tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if task.status == 'done' %}
+<div class="modal" id="share-modal" hidden>
+  <div class="modal-backdrop" data-close></div>
+  <div class="modal-card panel">
+    <h3>生成分享链接</h3>
+    <p class="hint">拿到链接的人无需登录即可下载，分享页不会显示你的账号信息。</p>
+    <label class="field"><span>有效期（小时，0 表示不过期）</span>
+      <input id="share-hours" type="number" min="0" max="168" value="{{ cfg.result_ttl_hours }}"></label>
+    <label class="field"><span>最大下载次数（0 表示不限）</span>
+      <input id="share-max" type="number" min="0" max="10000" value="{{ cfg.share_max_downloads }}"></label>
+    <div class="actions-row">
+      <button class="btn btn-primary" type="button" id="share-create">生成链接</button>
+      <button class="btn btn-ghost" type="button" data-close>取消</button>
+    </div>
+    <div class="share-result" id="share-result" hidden>
+      <input id="share-url" readonly>
+      <button class="btn btn-ghost btn-sm" type="button" id="share-copy">复制</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  window.FF_TASK = {
+    id: {{ task.id|tojson }},
+    status: {{ task.status|tojson }},
+    labels: {{ status_labels|tojson }},
+    classes: {{ {'pending':'warn','running':'info','done':'ok','failed':'err','expired':'muted','canceled':'muted'}|tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/task.js') }}"></script>
+{% endblock %}

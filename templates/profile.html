@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}个人中心 · FileForge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">ACCOUNT</p>
+    <h1 class="page-title">个人中心</h1>
+    <p class="page-sub">{{ profile.username }} · {{ profile.email }}</p>
+  </div>
+  <a class="btn btn-ghost" href="/tasks">我的任务</a>
+</div>
+
+{% set quota_pct = (profile.used_bytes * 100 / profile.quota_bytes) if profile.quota_bytes else 0 %}
+<div class="split-2">
+  <section class="panel">
+    <div class="panel-head"><h2>配额使用</h2><span class="muted">{{ profile.used_bytes|size }} / {{ profile.quota_bytes|size }}</span></div>
+    <div class="progress-bar big"><span style="width: {{ [quota_pct, 100]|min|round(1) }}%"></span></div>
+    <p class="hint">配额按上传的源文件累计，删除或过期后自动释放。</p>
+
+    <div class="panel-divider"></div>
+    <div class="stat-grid compact">
+      <div class="stat"><span class="stat-label">全部任务</span><span class="stat-value">{{ counts.get('total', 0) }}</span></div>
+      <div class="stat"><span class="stat-label">已完成</span><span class="stat-value ok">{{ counts.get('done', 0) }}</span></div>
+      <div class="stat"><span class="stat-label">进行中</span><span class="stat-value info">{{ counts.get('running', 0) + counts.get('pending', 0) }}</span></div>
+      <div class="stat"><span class="stat-label">失败</span><span class="stat-value err">{{ counts.get('failed', 0) }}</span></div>
+    </div>
+
+    <dl class="meta-grid single">
+      <div><dt>账号角色</dt><dd>{{ '管理员' if profile.role == 'admin' else '注册用户' }}</dd></div>
+      <div><dt>注册时间</dt><dd>{{ profile.created_at|dt }}</dd></div>
+      <div><dt>账号状态</dt><dd>{{ '正常' if profile.status == 'active' else '已封禁' }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>修改密码</h2></div>
+    <form class="form" id="password-form">
+      <label class="field"><span>当前密码</span><input name="old_password" type="password" autocomplete="current-password" required></label>
+      <label class="field"><span>新密码</span><input name="new_password" type="password" autocomplete="new-password" required minlength="8" placeholder="至少 8 位，包含字母和数字"></label>
+      <label class="field"><span>确认新密码</span><input name="confirm" type="password" autocomplete="new-password" required minlength="8"></label>
+      <p class="form-error" id="form-error" hidden></p>
+      <button class="btn btn-primary" type="submit">保存新密码</button>
+      <p class="hint">修改成功后需要重新登录。</p>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/profile.js') }}"></script>{% endblock %}

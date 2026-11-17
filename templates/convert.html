@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ info.label }} · FileForge{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ info.label }}</p>
+    <h1 class="page-title">{{ info.label }}</h1>
+    <p class="page-sub">{{ info.tagline }}</p>
+  </div>
+  <a class="btn btn-ghost" href="/">返回首页</a>
+</div>
+
+<div class="convert-grid">
+  <section class="panel upload-panel">
+    <div class="panel-head">
+      <h2>1. 选择文件</h2>
+      <span class="muted">单文件最大 {{ cfg.max_upload_bytes|size }}</span>
+    </div>
+
+    <div id="dropzone" class="dropzone">
+      <input id="file-input" type="file" multiple hidden>
+      <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 16V4m0 0L7 9m5-5l5 5"/>
+        <path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/>
+      </svg>
+      <p class="dz-title">拖拽文件到这里，或 <span class="link">点击选择</span></p>
+      <p class="dz-hint">支持 {{ info.exts|join(' / ') }}，可一次选择多个文件</p>
+    </div>
+
+    <div id="file-list" class="file-list"></div>
+  </section>
+
+  <aside class="panel option-panel">
+    <div class="panel-head"><h2>2. 转换设置</h2></div>
+
+    <label class="field">
+      <span>目标格式</span>
+      <select id="target-select" disabled>
+        <option value="">请先选择文件</option>
+      </select>
+      <span class="hint" id="target-hint"></span>
+    </label>
+
+    <div id="options" class="options">
+      {% if category == 'image' %}
+        <label class="field">
+          <span>压缩质量 <b id="quality-val">85</b></span>
+          <input id="opt-quality" type="range" min="1" max="100" value="85">
+        </label>
+        <div class="field-row">
+          <label class="field"><span>宽（px，可选）</span><input id="opt-width" type="number" min="0" max="10000" placeholder="保持原宽"></label>
+          <label class="field"><span>高（px，可选）</span><input id="opt-height" type="number" min="0" max="10000" placeholder="等比缩放"></label>
+        </div>
+        <p class="hint">只填一项时按比例缩放；同时填写则等比缩放到框内。</p>
+      {% elif category == 'media' %}
+        <div class="field-row">
+          <label class="field"><span>开始时间（可选）</span><input id="opt-start" placeholder="00:00:05"></label>
+          <label class="field"><span>结束时间（可选）</span><input id="opt-end" placeholder="00:00:15"></label>
+        </div>
+        <label class="field"><span>分辨率（可选）</span><input id="opt-resolution" placeholder="1280x720"></label>
+        <p class="hint">转 GIF 默认 10fps、宽 480px；填充分辨率可覆盖宽度。</p>
+      {% elif category == 'archive' %}
+        <label class="field"><span>压缩级别（1-9）</span><input id="opt-level" type="number" min="1" max="9" value="6"></label>
+        <p class="hint">目标选 <code>list</code> 可在线查看压缩包清单，不解压到服务器。</p>
+      {% else %}
+        <p class="hint">文档转换无需额外参数。xlsx / xls → csv 只导出第一个工作表。</p>
+      {% endif %}
+    </div>
+
+    <button id="submit-btn" class="btn btn-primary btn-block" type="button" disabled>开始转换</button>
+    <p id="submit-hint" class="hint"></p>
+
+    <div class="panel-divider"></div>
+    <ul class="micro-list">
+      <li>上传时校验文件头，伪装后缀会被拒绝</li>
+      <li>转换容器断网、限内存、限 CPU、限进程</li>
+      <li>完成后在任务页下载，结果保留 {{ cfg.result_ttl_hours }} 小时</li>
+    </ul>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  window.FF_PAGE = {
+    category: {{ category|tojson }},
+    targetsByExt: {{ targets_by_ext|tojson }},
+    maxUpload: {{ cfg.max_upload_bytes }},
+    exts: {{ info.exts|tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+{% endblock %}

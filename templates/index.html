@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}FileForge · 文件工坊 — 在线格式转换{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <div class="hero-glow"></div>
+  <p class="eyebrow">DOCKER-POWERED FILE CONVERSION</p>
+  <h1 class="hero-title">把文件，<span class="grad">锻造成</span><br>你需要的格式</h1>
+  <p class="hero-sub">
+    图片、文档、音视频、压缩包四类格式转换。每个任务在一次性隔离容器中执行：
+    断网、限内存、限 CPU、限进程数，转换环境与宿主机彻底隔离。
+  </p>
+  <div class="hero-actions">
+    {% if user %}
+      <a class="btn btn-primary btn-lg" href="/convert/image">立即开始转换</a>
+      <a class="btn btn-ghost btn-lg" href="/tasks">查看我的任务</a>
+    {% else %}
+      <a class="btn btn-primary btn-lg" href="/register">免费注册</a>
+      <a class="btn btn-ghost btn-lg" href="/login">已有账号登录</a>
+    {% endif %}
+  </div>
+  <div class="hero-badges">
+    <span>容器级隔离</span>
+    <span>单文件 200MB</span>
+    <span>SSE 实时进度</span>
+    <span>结果保留 24h</span>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>选择转换类型</h2>
+    <p>转换工具由固定版本镜像提供，不污染宿主机</p>
+  </div>
+  <div class="grid-cards">
+    {% for key in category_order %}
+    {% set info = categories[key] %}
+    <a class="cat-card" href="/convert/{{ key }}">
+      <div class="cat-icon {{ key }}">
+        {% if key == 'image' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg>
+        {% elif key == 'document' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 12h6M10 16h6M10 8h2"/></svg>
+        {% elif key == 'media' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/></svg>
+        {% else %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/><path d="M12 12v8"/></svg>
+        {% endif %}
+      </div>
+      <h3 class="cat-title">{{ info.label }}</h3>
+      <p class="cat-desc">{{ info.tagline }}</p>
+      <div class="cat-formats">
+        {% for ext in info.exts[:6] %}<code>{{ ext }}</code>{% endfor %}
+      </div>
+      <span class="cat-go">进入转换 →</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+{% if user %}
+<section class="section">
+  <div class="section-head">
+    <h2>最近任务</h2>
+    <a class="link" href="/tasks">全部任务 →</a>
+  </div>
+  <div class="panel list-panel">
+    {% if recent %}
+      {% for task in recent %}
+      <a class="list-row" href="/tasks/{{ task.id }}">
+        <div class="list-main">
+          <span class="list-name">{{ task.src_name }}</span>
+          <span class="list-sub">{{ task.category|cat_label }} · {{ task.src_size|size }}
+            {% if task.target_format %}→ {{ task.target_format }}{% endif %}</span>
+        </div>
+        <div class="list-side">
+          <span class="badge {{ task.status|status_class }}">{{ task.status|status_label }}</span>
+          <span class="list-time">{{ task.created_at|dt }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty">
+        <p>还没有任务</p>
+        <a class="btn btn-primary btn-sm" href="/convert/image">上传第一个文件</a>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section">
+  <div class="feature-grid">
+    <div class="feature">
+      <h3>容器级资源隔离</h3>
+      <p>每次转换启动一次性工具容器：<code>--network none</code>、<code>--memory 1g</code>、<code>--cpus 1</code>、<code>--pids-limit 64</code>，失败或超时自动删除。</p>
+    </div>
+    <div class="feature">
+      <h3>真实类型校验</h3>
+      <p>上传时读取文件头，用 libmagic 与魔数双重比对扩展名。伪造后缀的“图片”会被直接拒绝。</p>
+    </div>
+    <div class="feature">
+      <h3>队列与横向扩展</h3>
+      <p>任务写入 SQLite 队列，worker 通过原子 SQL 领取。<code>docker compose up -d --scale worker=2</code> 即可加速消费。</p>
+    </div>
+    <div class="feature">
+      <h3>下载不经过应用</h3>
+      <p>鉴权后返回 <code>X-Accel-Redirect</code>，由 Nginx 直接从卷里发文件，大文件下载不占用 Python 进程。</p>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
